@@ -35,11 +35,13 @@ def get_host_info():
 @functools.lru_cache(maxsize=100)
 def get_predictor(checkpoint_path):
     logger.info('loading model')
-    import tensorflow as tf
+    import tensorflow.compat.v1 as tf
     import model
     from icdar import restore_rectangle
     import lanms
     from eval import resize_image, sort_poly, detect
+    
+    tf.disable_eager_execution()
 
     input_images = tf.placeholder(tf.float32, shape=[None, None, None, 3], name='input_images')
     global_step = tf.get_variable('global_step', [], initializer=tf.constant_initializer(0), trainable=False)
@@ -126,6 +128,7 @@ def get_predictor(checkpoint_path):
                 tl = collections.OrderedDict(zip(
                     ['x0', 'y0', 'x1', 'y1', 'x2', 'y2', 'x3', 'y3'],
                     map(float, box.flatten())))
+                tl['ocr_text'] = get_ocr_text(img, int(tl['x0']),int(tl['x2']),int(tl['y0']),int(tl['y2']))
                 tl['score'] = float(score)
                 text_lines.append(tl)
         ret = {
@@ -189,7 +192,13 @@ def save_result(img, rst):
     rst['session_id'] = session_id
     return rst
 
-
+def get_ocr_text(img, x0, x2, y0, y2):
+    from PIL import Image
+    import pytesseract
+    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    crop_img = img[y0:y2, x0:x2]
+    im = Image.fromarray(crop_img)
+    return pytesseract.image_to_string(im)
 
 checkpoint_path = './east_icdar2015_resnet_v1_50_rbox'
 
